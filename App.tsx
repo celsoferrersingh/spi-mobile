@@ -1,6 +1,4 @@
 import React, { useState } from "react";
-import { Ocorrencia } from "./src/types";
-import { mockOcorrencias } from "./src/data/mockData";
 import ListaScreen from "./src/screens/ListaScreen";
 import CadastroScreen from "./src/screens/CadastroScreen";
 import DetalheScreen from "./src/screens/DetalheScreen";
@@ -9,26 +7,27 @@ import DetalheScreen from "./src/screens/DetalheScreen";
 type Screen = "lista" | "cadastro" | "detalhe";
 
 export default function App() {
-  // Estado global das ocorrências (inicializado com dados mockados)
-  const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>(mockOcorrencias);
+  // SPRINT 3: o estado global de ocorrencias saiu daqui.
+  // Quem tem os dados agora e o backend; cada tela busca o que precisa
+  // pela camada de servicos (src/services).
 
   // Controle de navegação por estado (sem biblioteca externa)
   const [currentScreen, setCurrentScreen] = useState<Screen>("lista");
-  const [selectedOcorrencia, setSelectedOcorrencia] = useState<Ocorrencia | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  // Adiciona nova ocorrência ao estado e volta para a lista
-  const handleAddOcorrencia = (dados: Omit<Ocorrencia, "id">) => {
-    const nova: Ocorrencia = {
-      ...dados,
-      id: Date.now(), // ID único baseado no timestamp
-    };
-    setOcorrencias((prev) => [nova, ...prev]);
+  // Muda a cada volta para a lista, forcando um GET novo na API
+  const [chaveRecarga, setChaveRecarga] = useState(0);
+
+  // Volta para a lista e pede uma recarga dos dados
+  const voltarParaLista = () => {
+    setChaveRecarga((valor) => valor + 1);
     setCurrentScreen("lista");
   };
 
-  // Seleciona uma ocorrência e navega para o detalhe
-  const handleSelectOcorrencia = (ocorrencia: Ocorrencia) => {
-    setSelectedOcorrencia(ocorrencia);
+  // Seleciona uma ocorrência e navega para o detalhe.
+  // Passa so o id: o detalhe faz o proprio GET /ocorrencias/{id}.
+  const handleSelectOcorrencia = (id: number) => {
+    setSelectedId(id);
     setCurrentScreen("detalhe");
   };
 
@@ -36,7 +35,7 @@ export default function App() {
   if (currentScreen === "lista") {
     return (
       <ListaScreen
-        ocorrencias={ocorrencias}
+        chaveRecarga={chaveRecarga}
         onNovoCadastro={() => setCurrentScreen("cadastro")}
         onSelectOcorrencia={handleSelectOcorrencia}
       />
@@ -46,19 +45,14 @@ export default function App() {
   if (currentScreen === "cadastro") {
     return (
       <CadastroScreen
-        onSalvar={handleAddOcorrencia}
-        onVoltar={() => setCurrentScreen("lista")}
+        onSalvo={handleSelectOcorrencia}
+        onVoltar={voltarParaLista}
       />
     );
   }
 
-  if (currentScreen === "detalhe" && selectedOcorrencia) {
-    return (
-      <DetalheScreen
-        ocorrencia={selectedOcorrencia}
-        onVoltar={() => setCurrentScreen("lista")}
-      />
-    );
+  if (currentScreen === "detalhe" && selectedId !== null) {
+    return <DetalheScreen id={selectedId} onVoltar={voltarParaLista} />;
   }
 
   return null;

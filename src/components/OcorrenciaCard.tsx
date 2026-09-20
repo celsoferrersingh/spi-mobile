@@ -20,7 +20,11 @@ function getGravidadeCor(nivel: number): string {
 }
 
 export default function OcorrenciaCard({ ocorrencia, onPress }: Props) {
-  const status = statusConfig[ocorrencia.status];
+  // Fallback caso o backend traga um status fora da lista conhecida
+  const status = statusConfig[ocorrencia.status] ?? {
+    cor: "#6B7280",
+    label: ocorrencia.status,
+  };
   const gravidadeCor = getGravidadeCor(ocorrencia.gravidadeNivel);
   const data = new Date(ocorrencia.dataHoraDeteccao).toLocaleDateString("pt-BR");
 

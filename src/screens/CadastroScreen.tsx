@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { Ocorrencia, TipoDefeito, StatusOcorrencia } from "../types";
+import { NovaOcorrencia, TipoDefeito, StatusOcorrencia } from "../types";
+import { criar } from "../services/ocorrenciaService";
+import { mensagemDeErro } from "../services/erroHttp";
 
 type Props = {
-  onSalvar: (ocorrencia: Omit<Ocorrencia, "id">) => void;
+  /** Chamado com o id gerado pelo banco depois do POST */
+  onSalvo: (id: number) => void;
   onVoltar: () => void;
 };
 
@@ -30,7 +33,20 @@ const statusOpcoes: { valor: StatusOcorrencia; label: string }[] = [
   { valor: "RESOLVIDA", label: "Resolvida" },
 ];
 
-export default function CadastroScreen({ onSalvar, onVoltar }: Props) {
+/**
+ * Data e hora LOCAL no formato que o backend espera (LocalDateTime, sem fuso).
+ *
+ * new Date().toISOString() devolveria UTC terminado em "Z". O Jackson corta o
+ * "Z" e grava o relogio UTC, fazendo a ocorrencia aparecer 3h adiantada no
+ * horario de Brasilia. Aqui o offset e descontado antes de formatar.
+ */
+function agoraLocalISO(): string {
+  const agora = new Date();
+  const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 19);
+}
+
+export default function CadastroScreen({ onSalvo, onVoltar }: Props) {
   const [descricao, setDescricao] = useState("");
   const [tipoDefeito, setTipoDefeito] = useState<TipoDefeito>("TRINCA");
   const [localizacao, setLocalizacao] = useState("");
@@ -38,24 +54,57 @@ export default function CadastroScreen({ onSalvar, onVoltar }: Props) {
   const [status, setStatus] = useState<StatusOcorrencia>("ABERTA");
   const [observacoes, setObservacoes] = useState("");
 
-  const handleSalvar = () => {
+  // Estados da tela: enviando (carregando), erro e sucesso
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState<string | null>(null);
+
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (temporizador.current) {
+        clearTimeout(temporizador.current);
+      }
+    };
+  }, []);
+
+  /**
+   * SPRINT 3: envia a ocorrencia para a API com POST /ocorrencias.
+   * A mensagem de validacao aparece na propria tela, e nao em Alert.alert,
+   * porque o Alert do React Native nao aparece na versao web.
+   */
+  const handleSalvar = async () => {
     if (!descricao.trim() || !localizacao.trim()) {
-      Alert.alert(
-        "Campos obrigatórios",
-        "Preencha a Descrição e a Localização para continuar."
-      );
+      setErro("Preencha a Descrição e a Localização para continuar.");
       return;
     }
 
-    onSalvar({
+    const nova: NovaOcorrencia = {
       descricao: descricao.trim(),
       tipoDefeito,
       localizacao: localizacao.trim(),
       gravidadeNivel,
       status,
-      dataHoraDeteccao: new Date().toISOString(),
+      dataHoraDeteccao: agoraLocalISO(),
       observacoes: observacoes.trim() || undefined,
-    });
+    };
+
+    setEnviando(true);
+    setErro(null);
+    setSucesso(null);
+
+    try {
+      const salva = await criar(nova);
+      setSucesso(
+        `Ocorrência registrada no backend com o id ${salva.id}. Abrindo o detalhe...`
+      );
+      temporizador.current = setTimeout(() => onSalvo(salva.id), 1200);
+    } catch (e) {
+      setErro(mensagemDeErro(e));
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const getGravidadeCor = (n: number) => {
@@ -63,6 +112,8 @@ export default function CadastroScreen({ onSalvar, onVoltar }: Props) {
     if (n === 3) return "#F59E0B";
     return "#EF4444";
   };
+
+  const bloqueado = enviando || !!sucesso;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -80,6 +131,20 @@ export default function CadastroScreen({ onSalvar, onVoltar }: Props) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Estado: ERRO */}
+        {erro ? (
+          <View style={styles.caixaErro}>
+            <Text style={styles.textoErro}>{erro}</Text>
+          </View>
+        ) : null}
+
+        {/* Estado: SUCESSO */}
+        {sucesso ? (
+          <View style={styles.caixaSucesso}>
+            <Text style={styles.textoSucesso}>{sucesso}</Text>
+          </View>
+        ) : null}
+
         {/* Descrição */}
         <Text style={styles.label}>Descrição *</Text>
         <TextInput
@@ -203,11 +268,16 @@ export default function CadastroScreen({ onSalvar, onVoltar }: Props) {
 
         {/* Botão Salvar */}
         <TouchableOpacity
-          style={styles.salvarBtn}
+          style={[styles.salvarBtn, bloqueado && styles.salvarBtnDesativado]}
           onPress={handleSalvar}
+          disabled={bloqueado}
           activeOpacity={0.85}
         >
-          <Text style={styles.salvarTexto}>Registrar Ocorrência</Text>
+          {enviando ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.salvarTexto}>Registrar Ocorrência</Text>
+          )}
         </TouchableOpacity>
 
         <View style={{ height: 50 }} />
@@ -229,6 +299,29 @@ const styles = StyleSheet.create({
   voltarTexto: { color: "#93C5FD", fontSize: 14, fontWeight: "600" },
   titulo: { fontSize: 17, fontWeight: "700", color: "#fff" },
   form: { paddingHorizontal: 16 },
+  caixaErro: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#EF4444",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 16,
+  },
+  textoErro: { color: "#991B1B", fontSize: 14, lineHeight: 20 },
+  caixaSucesso: {
+    backgroundColor: "#D1FAE5",
+    borderColor: "#10B981",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 16,
+  },
+  textoSucesso: {
+    color: "#065F46",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
   label: {
     fontSize: 12,
     fontWeight: "700",
@@ -295,5 +388,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
+  salvarBtnDesativado: { opacity: 0.6 },
   salvarTexto: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

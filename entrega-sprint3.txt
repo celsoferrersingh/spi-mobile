@@ -1,0 +1,61 @@
+========================================================
+ENTREGA - SPRINT 3 INTEGRACAO FRONTEND E BACKEND
+SPI - Sistema de Visao Computacional Industrial
+========================================================
+
+INTEGRANTES DO GRUPO:
+--------------------------------------------------------
+Nome: Celso Fernando Ferrer Singh       RM: 565643
+Nome: Juan Alberto Lenis Rodriguez      RM: 559744
+Nome: Rodrigo Arantes da Silva Philippi RM: 557594
+Nome: Henrique Monteiro Khouri          RM: 555572
+Nome: Kagio Miura Neto                  RM: 559212
+
+
+LINK DO REPOSITORIO BACKEND:
+--------------------------------------------------------
+GitHub: https://github.com/celsoferrersingh/spi-backend
+
+
+LINK DO REPOSITORIO FRONTEND:
+--------------------------------------------------------
+GitHub: https://github.com/celsoferrersingh/spi-mobile
+
+
+O QUE FOI FEITO NESTA SPRINT:
+--------------------------------------------------------
+BACKEND (spi-backend):
+- @CrossOrigin(origins = "*") no OcorrenciaController, sem o qual
+  a versao web do app e bloqueada pelo CORS do navegador.
+- Nova rota GET /ocorrencias/status/{status}, com a consulta
+  derivada findByStatusOrderByDataHoraDeteccaoDesc no repository.
+- CargaInicial: insere na primeira execucao as 4 ocorrencias que
+  antes ficavam no mockData.ts do app.
+- Datas serializadas em ISO-8601.
+- Estrutura em camadas e entidade Ocorrencia mantidas da Sprint 1.
+
+APP (spi-mobile):
+- src/data/mockData.ts REMOVIDO.
+- Camada de servicos criada:
+  * src/services/api.ts              - instancia do Axios
+                                       (baseURL, timeout, Content-Type)
+  * src/services/ocorrenciaService.ts - listar, listarPorStatus,
+                                       buscarPorId, criar, atualizar, remover
+  * src/services/erroHttp.ts         - traduz o erro do Axios para a tela
+- Nenhuma tela importa axios nem monta URL.
+- Lista: GET + useEffect + Promise.all (3 chamadas em paralelo).
+- Cadastro: POST com Omit<Ocorrencia, "id">.
+- Detalhe: GET por id, mais PUT para avancar o status.
+- Estados de carregando, erro e sucesso com try/catch/finally.
+- BASE_URL: localhost:8080 (web e iOS), 10.0.2.2:8080 (emulador
+  Android) e IP da maquina (celular fisico).
+
+COMO RODAR:
+--------------------------------------------------------
+Backend:  cd spi-backend  && mvn spring-boot:run
+App:      cd spi-mobile   && npm install && npx expo install axios
+                          && npx expo start   (tecla w para o navegador)
+
+Instrucoes completas no README.md dos dois repositorios.
+
+========================================================
